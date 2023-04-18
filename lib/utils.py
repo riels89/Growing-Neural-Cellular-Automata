@@ -1,4 +1,5 @@
 import numpy as np
+import imageio
 
 def tup_distance(node1, node2, mode="Euclidean"):
     """
@@ -21,3 +22,9 @@ def mat_distance(mat1, mat2, mode="Euclidean"):
         return np.sum(np.abs(mat1-mat2), axis=-1)
     else:
         raise ValueError("Unrecognized distance mode: "+mode)
+
+def load_emoji(index, path="data/emoji.png"):
+    im = imageio.imread(path)
+    emoji = np.array(im[:, index*40:(index+1)*40].astype(np.float32))
+    emoji /= 255.0
+    return emoji

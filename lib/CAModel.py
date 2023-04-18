@@ -68,3 +68,56 @@ class CAModel(nn.Module):
         for step in range(steps):
             x = self.update(x, fire_rate, angle)
         return x
+
+
+class QCAModel(nn.Module):
+
+    def __init__(self, channel_n, fire_rate, device, hidden_size=128):
+        super(QCAModel, self).__init__()
+
+        self.device = device
+        self.channel_n = channel_n
+
+        self.quant = torch.quantization.QuantStub()
+        self.conv = nn.Conv2d(channel_n, channel_n * 3, (3, 3), padding=1, groups=channel_n)
+        self.fc0 = nn.Conv2d(channel_n*3, hidden_size, (1,1))
+        self.fc1 = nn.Conv2d(hidden_size, channel_n, (1,1), bias=False)
+        self.relu = torch.nn.ReLU()
+        self.dequant = torch.quantization.DeQuantStub()
+
+        with torch.no_grad():
+            self.fc1.weight.zero_()
+
+        self.fire_rate = fire_rate
+        self.to(self.device)
+
+    def alive(self, x):
+        return F.max_pool2d(x[:, 3:4, :, :], kernel_size=3, stride=1, padding=1) > 0.1
+
+    def update(self, x):
+        x = x.transpose(1,3)
+        pre_life_mask = self.alive(x)
+
+        x = self.quant(x)
+        dx = self.conv(x)
+        dx = self.fc0(dx)
+        dx = self.relu(dx)
+        dx = self.fc1(dx)
+        self.dequant(dx)
+
+        stochastic = torch.rand([dx.size(0),1, dx.size(2),dx.size(3)])>self.fire_rate
+        # stochastic = stochastic.float().to(self.device)
+        # dx = dx * stochastic
+        dx = torch.where(stochastic, dx, torch.tensor(0.0))
+        x = x+dx
+
+        post_life_mask = self.alive(x)
+        life_mask = pre_life_mask & post_life_mask
+        x = torch.where(life_mask, x, torch.tensor(0.0))
+
+        return x.transpose(1,3)
+
+    def forward(self, x, steps=1):
+        for step in range(steps):
+            x = self.update(x)
+        return x
