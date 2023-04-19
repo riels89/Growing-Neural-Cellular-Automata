@@ -4,38 +4,70 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import argparse
+import os.path
 
 from lib.CAModel import CAModel, QCAModel
 from lib.utils_vis import SamplePool, to_alpha, to_rgb, get_living_mask, make_seed, make_circle_masks
-from lib.utils import load_emoji
+from lib.utils import load_emoji, load_png
 
-device = torch.device("cpu:0")
-model_path = "models/remaster_1.pth"
+parser = argparse.ArgumentParser()
+parser.add_argument("target", help="Path to target png image to train on.",
+                    type=load_png)
+parser.add_argument("model_path", help="Path to save/load the model")
+parser.add_argument("-r", "--reload", 
+                    help="""If model path already contains a trained model,
+                            should training start with this loaded model.""",
+                    type=bool, default=True)
+parser.add_argument("-d", "--device", help="Device to train on.",
+                    default="cuda", type=torch.device)
+parser.add_argument("-c", "--channel_n", help="Total number of CA channels.",
+                    default=16, type=int)
+parser.add_argument("-pad", "--target_padding", help="Amount of padding to add around the target",
+                    default=10, type=int)
+parser.add_argument("-lr", "--learning_rate", help="Learning rate of optimizer.",
+                    default=2e-3, type=float)
+parser.add_argument("-g", "--gamma", help="Learning rate gamma value",
+                    default=0.9999, type=float)
+parser.add_argument("-e", "--epochs", help="Number of epochs to train for.",
+                    default=80000, type=int)
+parser.add_argument("-b", "--batch_size", help="Training batch size",
+                    default=8, type=int)
+parser.add_argument("-p", "--pool_size", help="Size of NCA pool.",
+                    default=1024, type=int)
+parser.add_argument("-f", "--fire_rate", help="Fire rate of CA.",
+                    default=0.5, type=float)
+parser.add_argument("-t", "--exp_type", help="Expirement type. 0:Growing, 1:Persistent, 2:Regenerating",
+                    default=2, type=int, choices=[0,1,2])
+parser.add_argument("-s", "--save_every", help="After how many epochs to save the model",
+                    default=1000, type=int)
+args = parser.parse_args()
 
-CHANNEL_N = 16        # Number of CA state channels
-TARGET_PADDING = 16   # Number of pixels used to pad the target image border
-TARGET_SIZE = 40
+device = args.device
+model_path = args.model_path
+parts = model_path.split("/")
+parts[-1] = "f32_" + parts[-1]
+f32_model_path = "/".join(parts)
 
-lr = 2e-3
-lr_gamma = 0.9999
+CHANNEL_N = args.channel_n        # Number of CA state channels
+TARGET_PADDING = args.target_padding   # Number of pixels used to pad the target image border
+
+lr = args.learning_rate
+lr_gamma = args.gamma
 betas = (0.5, 0.5)
-n_epoch = 80000
+n_epoch = args.epochs
 
-BATCH_SIZE = 8
-POOL_SIZE = 1024
-CELL_FIRE_RATE = 0.5
+BATCH_SIZE = args.batch_size
+POOL_SIZE = args.pool_size
+CELL_FIRE_RATE = args.fire_rate
+SAVE_EVERY = args.save_every
 
-TARGET_EMOJI = 0 #@param "🦎"
-
-EXPERIMENT_TYPE = "Regenerating"
-EXPERIMENT_MAP = {"Growing":0, "Persistent":1, "Regenerating":2}
-EXPERIMENT_N = EXPERIMENT_MAP[EXPERIMENT_TYPE]
-
-USE_PATTERN_POOL = [0, 1, 1][EXPERIMENT_N]
-DAMAGE_N = [0, 0, 3][EXPERIMENT_N]  # Number of patterns to damage in a batch
+EXPERIMENT_TYPE = args.exp_type
+USE_PATTERN_POOL = [0, 1, 1][EXPERIMENT_TYPE]
+DAMAGE_N = [0, 0, 3][EXPERIMENT_TYPE]  # Number of patterns to damage in a batch
 
 
-target_img = load_emoji(TARGET_EMOJI)
+target_img = args.target
 print(f"Target shape: {target_img.shape}")
 p = TARGET_PADDING
 pad_target = np.pad(target_img, [(p, p), (p, p), (0, 0)])
@@ -47,13 +79,14 @@ seed = make_seed((h, w), CHANNEL_N)
 pool = SamplePool(x=np.repeat(seed[None, ...], POOL_SIZE, 0))
 
 m_f32 = QCAModel(CHANNEL_N, CELL_FIRE_RATE, device)
-# ca.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
 #### Start of quantization stuff
 m_f32.eval()
 m_f32.qconfig = torch.quantization.get_default_qconfig('x86')
-m_f32_fused = torch.quantization.fuse_modules(m_f32, [['fc0', 'relu']])
+m_f32_fused = torch.quantization.fuse_modules(m_f32, [['fc0', 'relu2'], ["conv", "relu1"]])
 m_f32_prepared = torch.quantization.prepare_qat(m_f32_fused.train())
+if args.reload and os.path.isfile(f32_model_path) :
+    m_f32_prepared.load_state_dict(torch.load(f32_model_path, map_location=device))
 #### End of quantization stuff, start training
 
 
@@ -98,14 +131,18 @@ for i in range(n_epoch+1):
     step_i = len(loss_log)
     loss_log.append(loss.item())
     
-    print(step_i, "loss =", loss.item(), "\r")
-    if step_i%100 == 0:
+    if step_i%SAVE_EVERY == 0 and step_i != 0:
+        print(step_i, "loss =", sum(loss_log[:-SAVE_EVERY]) / SAVE_EVERY)
         # visualize_batch(x0.detach().cpu().numpy(), x.detach().cpu().numpy())
-        torch.save(m_f32_prepared.state_dict(), model_path)
+        torch.save(m_f32_prepared.state_dict(), f32_model_path)
 ##### End of training
 
 
 #### Convert to int8 !
 m_f32_prepared.eval()
 m_i8 = torch.quantization.convert(m_f32_prepared)
+parts = model_path.split("/")
+parts[-1] = "int8_" + parts[-1]
+i8_path = "/".join(parts)
+torch.save(m_i8.state_dict(), i8_path)
 #### Finished converting

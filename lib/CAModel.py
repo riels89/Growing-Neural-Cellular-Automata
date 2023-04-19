@@ -82,7 +82,8 @@ class QCAModel(nn.Module):
         self.conv = nn.Conv2d(channel_n, channel_n * 3, (3, 3), padding=1, groups=channel_n)
         self.fc0 = nn.Conv2d(channel_n*3, hidden_size, (1,1))
         self.fc1 = nn.Conv2d(hidden_size, channel_n, (1,1), bias=False)
-        self.relu = torch.nn.ReLU()
+        self.relu1 = torch.nn.ReLU()
+        self.relu2 = torch.nn.ReLU()
         self.dequant = torch.quantization.DeQuantStub()
 
         with torch.no_grad():
@@ -100,8 +101,9 @@ class QCAModel(nn.Module):
 
         x = self.quant(x)
         dx = self.conv(x)
+        dx = self.relu1(dx)
         dx = self.fc0(dx)
-        dx = self.relu(dx)
+        dx = self.relu2(dx)
         dx = self.fc1(dx)
         self.dequant(dx)
 
