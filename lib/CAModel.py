@@ -105,15 +105,15 @@ class QCAModel(nn.Module):
         dx = self.fc1(dx)
         self.dequant(dx)
 
-        stochastic = torch.rand([dx.size(0),1, dx.size(2),dx.size(3)])>self.fire_rate
+        stochastic = torch.rand([dx.size(0),1, dx.size(2),dx.size(3)], device=self.device)>self.fire_rate
         # stochastic = stochastic.float().to(self.device)
         # dx = dx * stochastic
-        dx = torch.where(stochastic, dx, torch.tensor(0.0))
+        dx = torch.where(stochastic, dx, torch.tensor(0.0, device=self.device))
         x = x+dx
 
         post_life_mask = self.alive(x)
         life_mask = pre_life_mask & post_life_mask
-        x = torch.where(life_mask, x, torch.tensor(0.0))
+        x = torch.where(life_mask, x, torch.tensor(0.0, device=self.device))
 
         return x.transpose(1,3)
 
