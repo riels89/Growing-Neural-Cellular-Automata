@@ -28,3 +28,9 @@ def load_emoji(index, path="data/emoji.png"):
     emoji = np.array(im[:, index*40:(index+1)*40].astype(np.float32))
     emoji /= 255.0
     return emoji
+
+def load_png(path="data/jmu_jdog.png"):
+    im = imageio.imread(path)
+    emoji = np.array(im.astype(np.float32))
+    emoji /= 255.0
+    return emoji
