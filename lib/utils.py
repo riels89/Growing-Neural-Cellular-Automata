@@ -1,6 +1,7 @@
 import numpy as np
 import imageio
 
+
 def tup_distance(node1, node2, mode="Euclidean"):
     """
     mode: "Manhattan", "Euclidean"

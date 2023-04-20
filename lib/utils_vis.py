@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -55,3 +56,18 @@ def make_circle_masks(n, h, w):
     x, y = (x-center[0])/r, (y-center[1])/r
     mask = (x*x+y*y < 1.0).astype(np.float32)
     return mask
+
+def visualize_batch(x0, x, path="lastest_out.pdf"):
+    vis0 = to_rgb(x0)
+    vis1 = to_rgb(x)
+    fig = plt.figure(figsize=[15,5])
+    for i in range(x0.shape[0]):
+        plt.subplot(2,x0.shape[0],i+1)
+        plt.imshow(vis0[i])
+        plt.axis('off')
+    for i in range(x0.shape[0]):
+        plt.subplot(2,x0.shape[0],i+1+x0.shape[0])
+        plt.imshow(vis1[i])
+        plt.axis('off')
+    fig.savefig(path)
+    plt.close(fig)

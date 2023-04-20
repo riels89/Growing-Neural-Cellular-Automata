@@ -96,22 +96,22 @@ class QCAModel(nn.Module):
         return F.max_pool2d(x[:, 3:4, :, :], kernel_size=3, stride=1, padding=1) > 0.1
 
     def update(self, x):
-        x = x.transpose(1,3)
-        pre_life_mask = self.alive(x)
+        og_x = x.transpose(1,3)
+        pre_life_mask = self.alive(og_x)
 
-        x = self.quant(x)
+        x = self.quant(og_x)
         dx = self.conv(x)
         dx = self.relu1(dx)
         dx = self.fc0(dx)
         dx = self.relu2(dx)
         dx = self.fc1(dx)
-        self.dequant(dx)
+        dx = self.dequant(dx)
 
         stochastic = torch.rand([dx.size(0),1, dx.size(2),dx.size(3)], device=self.device)>self.fire_rate
         # stochastic = stochastic.float().to(self.device)
         # dx = dx * stochastic
         dx = torch.where(stochastic, dx, torch.tensor(0.0, device=self.device))
-        x = x+dx
+        x = og_x + dx
 
         post_life_mask = self.alive(x)
         life_mask = pre_life_mask & post_life_mask
@@ -123,3 +123,14 @@ class QCAModel(nn.Module):
         for step in range(steps):
             x = self.update(x)
         return x
+    
+    def prepare(self):
+        self.train()
+        self.qconfig = torch.quantization.get_default_qconfig('x86')
+        m_f32_fused = torch.quantization.fuse_modules(self, [['fc0', 'relu2'], ["conv", "relu1"]])
+        m_f32_prepared = torch.quantization.prepare_qat(m_f32_fused.train())
+        return m_f32_prepared
+    
+    def convert(self):
+        m_i8 = torch.quantization.convert(self.to("cpu"))
+        return m_i8

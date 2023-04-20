@@ -1,20 +1,20 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import argparse
 import os.path
 
-from lib.CAModel import CAModel, QCAModel
-from lib.utils_vis import SamplePool, to_alpha, to_rgb, get_living_mask, make_seed, make_circle_masks
+from lib.CAModel import QCAModel
+from lib.utils_vis import SamplePool, make_seed, make_circle_masks, visualize_batch
 from lib.utils import load_emoji, load_png
 
 parser = argparse.ArgumentParser()
 parser.add_argument("target", help="Path to target png image to train on.",
                     type=load_png)
 parser.add_argument("model_path", help="Path to save/load the model")
+parser.add_argument("--plot_path", help="Path to put batch vizualization.",
+                    default="latest_batch.pdf")
 parser.add_argument("-r", "--reload", 
                     help="""If model path already contains a trained model,
                             should training start with this loaded model.""",
@@ -81,10 +81,7 @@ pool = SamplePool(x=np.repeat(seed[None, ...], POOL_SIZE, 0))
 m_f32 = QCAModel(CHANNEL_N, CELL_FIRE_RATE, device)
 
 #### Start of quantization stuff
-m_f32.eval()
-m_f32.qconfig = torch.quantization.get_default_qconfig('x86')
-m_f32_fused = torch.quantization.fuse_modules(m_f32, [['fc0', 'relu2'], ["conv", "relu1"]])
-m_f32_prepared = torch.quantization.prepare_qat(m_f32_fused.train())
+m_f32_prepared = m_f32.prepare()
 if args.reload and os.path.isfile(f32_model_path) :
     m_f32_prepared.load_state_dict(torch.load(f32_model_path, map_location=device))
 #### End of quantization stuff, start training
@@ -130,18 +127,16 @@ for i in range(n_epoch+1):
 
     step_i = len(loss_log)
     loss_log.append(loss.item())
-    print(loss.item())
     
     if step_i%SAVE_EVERY == 0 and step_i != 0:
         print(step_i, "loss =", sum(loss_log[-SAVE_EVERY:]) / SAVE_EVERY)
-        # visualize_batch(x0.detach().cpu().numpy(), x.detach().cpu().numpy())
+        visualize_batch(x0.detach().cpu().numpy(), x.detach().cpu().numpy(), args.plot_path)
         torch.save(m_f32_prepared.state_dict(), f32_model_path)
 ##### End of training
 
 
 #### Convert to int8 !
-m_f32_prepared.eval()
-m_i8 = torch.quantization.convert(m_f32_prepared)
+m_i8 = m_f32_prepared.convert()
 parts = model_path.split("/")
 parts[-1] = "int8_" + parts[-1]
 i8_path = "/".join(parts)
