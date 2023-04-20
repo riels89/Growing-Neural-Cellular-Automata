@@ -15,7 +15,7 @@ display_map_shape = (120, 120)
 _map_shape = (80, 80)
 CHANNEL_N = 16
 CELL_FIRE_RATE = 0.5
-model_path = "models/int8_test.pth"
+model_path = "models/int8_jdog.pth"
 device = torch.device("cpu")
 
 torch.set_grad_enabled(False)
@@ -25,22 +25,25 @@ _cols = np.arange(_map_shape[1]).reshape([1,-1]).repeat(_map_shape[0],axis=0)
 _map_pos = np.array([_rows,_cols]).transpose([1,2,0])
 
 _map = make_seed(_map_shape, CHANNEL_N)
-seed_values = np.zeros((2, CHANNEL_N - 3))
-seed_values[:, 0] = 1
-seed_values[1, :int((CHANNEL_N - 3)/2)] = 1
-seed_values[0, int((CHANNEL_N - 3)/2)+1:] = 1
+# seed_values = np.zeros((2, CHANNEL_N - 3))
+# seed_values[:, 0] = 1
+# seed_values[1, :int((CHANNEL_N - 3)/2)] = 1
+# seed_values[0, int((CHANNEL_N - 3)/2)+1:] = 1
 curr_target = 0
 
-print(seed_values.shape)
+# print(seed_values.shape)
 print(_map.shape)
-_map[_map.shape[0]//2, _map.shape[1]//2, 3:] = seed_values[curr_target]
+# _map[_map.shape[0]//2, _map.shape[1]//2, 3:] = seed_values[curr_target]
 display_map = np.ones([*display_map_shape, 3]) -0.00001
 
+# Rasberry pi only has this backend
+torch.backends.quantized.engine = 'qnnpack'
 model = QCAModel(CHANNEL_N, CELL_FIRE_RATE, device).to(device)
 model = model.prepare()
 model = model.convert()
 model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-output = model(torch.from_numpy(_map.reshape([1,_map_shape[0],_map_shape[1],CHANNEL_N]).astype(np.float32)), 1)
+first_input = torch.from_numpy(_map.reshape([1,_map_shape[0],_map_shape[1],CHANNEL_N]).astype(np.float32))
+output = model(first_input, 1)
 
 disp = displayer(display_map_shape, pix_size)
 
@@ -76,11 +79,12 @@ while running:
     elif isSpaceDown:
         curr_target = (curr_target + 1) % 2
         output = make_seed(_map_shape, CHANNEL_N)
-        output[_map.shape[0]//2, _map.shape[1]//2, 3:] = seed_values[curr_target]
+        # output[_map.shape[0]//2, _map.shape[1]//2, 3:] = seed_values[curr_target]
         output = torch.from_numpy(output[np.newaxis])
         isSpaceDown = False
 
     output = model(output, 1)
+    # print(np.sum(make_seed(_map_shape, CHANNEL_N)))
 
     _map = to_rgb(output.numpy()[0])
     display_map[20:100, 20:100] = _map

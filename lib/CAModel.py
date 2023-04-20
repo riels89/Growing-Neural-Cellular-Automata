@@ -126,11 +126,12 @@ class QCAModel(nn.Module):
     
     def prepare(self):
         self.train()
-        self.qconfig = torch.quantization.get_default_qconfig('x86')
+        self.qconfig = torch.quantization.get_default_qconfig('qnnpack')
         m_f32_fused = torch.quantization.fuse_modules(self, [['fc0', 'relu2'], ["conv", "relu1"]])
-        m_f32_prepared = torch.quantization.prepare_qat(m_f32_fused.train())
+        m_f32_prepared = torch.quantization.prepare_qat(m_f32_fused)
         return m_f32_prepared
     
     def convert(self):
+        self.eval()
         m_i8 = torch.quantization.convert(self.to("cpu"))
         return m_i8

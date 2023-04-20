@@ -128,7 +128,7 @@ for i in range(n_epoch+1):
     step_i = len(loss_log)
     loss_log.append(loss.item())
     
-    if step_i%SAVE_EVERY == 0 and step_i != 0:
+    if step_i%SAVE_EVERY == 0:
         print(step_i, "loss =", sum(loss_log[-SAVE_EVERY:]) / SAVE_EVERY)
         visualize_batch(x0.detach().cpu().numpy(), x.detach().cpu().numpy(), args.plot_path)
         torch.save(m_f32_prepared.state_dict(), f32_model_path)
