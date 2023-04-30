@@ -10,12 +10,12 @@ from lib.utils_vis import to_rgb, make_seed
 
 eraser_radius = 6
 
-pix_size = 8
-display_map_shape = (120, 120)
-_map_shape = (80, 80)
+pix_size = 10
+display_map_shape = (60, 60)
+_map_shape = (60, 60)
 CHANNEL_N = 16
 CELL_FIRE_RATE = 0.5
-model_path = "models/test.pth"
+model_path = "models/test2.pth"
 device = torch.device("cpu")
 
 torch.set_grad_enabled(False)
@@ -72,7 +72,8 @@ while running:
 
     if isMouseDown:
         try:
-            mouse_pos = np.array([int(event.pos[1]/pix_size - 20), int(event.pos[0] / pix_size - 20)])
+            diff = display_map_shape[0] - _map_shape[0]
+            mouse_pos = np.array([int(event.pos[1]/pix_size - diff), int(event.pos[0] / pix_size - diff)])
             should_keep = (mat_distance(_map_pos, mouse_pos)>eraser_radius).reshape([_map_shape[0],_map_shape[1],1])
             output = output * torch.tensor(should_keep)
         except AttributeError:
@@ -88,5 +89,5 @@ while running:
     # print(np.sum(make_seed(_map_shape, CHANNEL_N)))
 
     _map = to_rgb(output.numpy()[0])
-    display_map[20:100, 20:100] = _map
+    display_map = _map
     disp.update(display_map)

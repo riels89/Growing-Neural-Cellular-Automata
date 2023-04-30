@@ -26,12 +26,13 @@ class displayer:
                                             _map_shape[0]*self.pix_size))
 
     def update(self, _map):
-        self.screen.fill((255,255,255))
+        # self.screen.fill((255,255,255))
         c = (_map*256).astype(np.uint8)[:, :, :3]
         c = np.transpose(c, (1, 0, 2))
         pygame.surfarray.blit_array(self.image, c)
         self.scaled_image = pygame.transform.scale(self.image, (self._map_shape[1]*self.pix_size,
                                             self._map_shape[0]*self.pix_size),
                                             self.scaled_image)
-        self.screen.blit(self.scaled_image, (20,20))
+        diff = (self._map_shape[0] - _map.shape[0], self._map_shape[1] - _map.shape[1])
+        self.screen.blit(self.scaled_image, diff)
         pygame.display.update()
