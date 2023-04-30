@@ -144,8 +144,8 @@ class NoGCAModel(nn.Module):
         self.device = device
         self.channel_n = channel_n
 
-        self.conv = nn.Conv2d(channel_n, channel_n * 3, (3, 3), padding=1)
-        self.fc0 = nn.Linear(channel_n*3, hidden_size)
+        self.conv = nn.Conv2d(channel_n, 3, (3, 3), padding=1)
+        self.fc0 = nn.Linear(3, hidden_size)
         self.fc1 = nn.Linear(hidden_size, channel_n, bias=False)
         self.relu1 = torch.nn.ReLU()
         self.relu2 = torch.nn.ReLU()
