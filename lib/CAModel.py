@@ -97,7 +97,7 @@ class QCAModel(nn.Module):
 
     def update(self, x):
         og_x = x.transpose(1,3)
-        pre_life_mask = self.alive(og_x)
+        pre_life_mask = self.alive(og_x.type(torch.float32))
 
         x = self.quant(og_x)
         dx = self.conv(x)
@@ -113,7 +113,7 @@ class QCAModel(nn.Module):
         dx = torch.where(stochastic, dx, torch.tensor(0.0, device=self.device))
         x = og_x + dx
 
-        post_life_mask = self.alive(x)
+        post_life_mask = self.alive(x.type(torch.float32))
         life_mask = pre_life_mask & post_life_mask
         x = torch.where(life_mask, x, torch.tensor(0.0, device=self.device))
 
@@ -135,3 +135,53 @@ class QCAModel(nn.Module):
         self.eval()
         m_i8 = torch.quantization.convert(self.to("cpu"))
         return m_i8
+
+class NoGCAModel(nn.Module):
+
+    def __init__(self, channel_n, fire_rate, device, hidden_size=128):
+        super(NoGCAModel, self).__init__()
+
+        self.device = device
+        self.channel_n = channel_n
+
+        self.conv = nn.Conv2d(channel_n, channel_n * 3, (3, 3), padding=1)
+        self.fc0 = nn.Linear(channel_n*3, hidden_size)
+        self.fc1 = nn.Linear(hidden_size, channel_n, bias=False)
+        self.relu1 = torch.nn.ReLU()
+        self.relu2 = torch.nn.ReLU()
+
+        with torch.no_grad():
+            self.fc1.weight.zero_()
+
+        self.fire_rate = fire_rate
+        self.to(self.device)
+
+    def alive(self, x):
+        return F.max_pool2d(x[:, 3:4, :, :], kernel_size=3, stride=1, padding=1) > 0.1
+
+    def update(self, x):
+        x = x.transpose(1,3)
+        pre_life_mask = self.alive(x)
+
+        dx = self.conv(x)
+        dx = self.relu1(dx)
+        dx = dx.transpose(1,3)
+        dx = self.fc0(dx)
+        dx = self.relu2(dx)
+        dx = self.fc1(dx)
+
+        stochastic = torch.rand([dx.size(0),1, dx.size(2),dx.size(3)], device=self.device)>self.fire_rate
+        dx = torch.where(stochastic, dx, torch.tensor(0.0, device=self.device))
+        x = x + dx.transpose(1,3)
+
+        post_life_mask = self.alive(x)
+        life_mask = pre_life_mask & post_life_mask
+        x = torch.where(life_mask, x, torch.tensor(0.0, device=self.device))
+
+        return x.transpose(1,3)
+
+    def forward(self, x, steps=1):
+        for step in range(steps):
+            x = self.update(x)
+        return x
+    

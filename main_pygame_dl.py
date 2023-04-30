@@ -5,7 +5,7 @@ import numpy as np
 
 from lib.displayer import displayer
 from lib.utils import mat_distance
-from lib.CAModel import CAModel,QCAModel
+from lib.CAModel import CAModel,QCAModel, NoGCAModel
 from lib.utils_vis import to_rgb, make_seed
 
 eraser_radius = 6
@@ -15,7 +15,7 @@ display_map_shape = (120, 120)
 _map_shape = (80, 80)
 CHANNEL_N = 16
 CELL_FIRE_RATE = 0.5
-model_path = "models/int8_jdog.pth"
+model_path = "models/test.pth"
 device = torch.device("cpu")
 
 torch.set_grad_enabled(False)
@@ -38,11 +38,12 @@ display_map = np.ones([*display_map_shape, 3]) -0.00001
 
 # Rasberry pi only has this backend
 torch.backends.quantized.engine = 'qnnpack'
-model = QCAModel(CHANNEL_N, CELL_FIRE_RATE, device).to(device)
-model = model.prepare()
-model = model.convert()
+model = NoGCAModel(CHANNEL_N, CELL_FIRE_RATE, device).to(device)
+# model = model.prepare()
 model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-first_input = torch.from_numpy(_map.reshape([1,_map_shape[0],_map_shape[1],CHANNEL_N]).astype(np.float32))
+# model = model.convert()
+# model = model.half()
+first_input = torch.from_numpy(_map.reshape([1,_map_shape[0],_map_shape[1],CHANNEL_N]))
 output = model(first_input, 1)
 
 disp = displayer(display_map_shape, pix_size)
