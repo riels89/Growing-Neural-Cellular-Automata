@@ -10,12 +10,12 @@ from lib.utils_vis import to_rgb, make_seed
 
 eraser_radius = 6
 
-pix_size = 10
+pix_size = 5
 display_map_shape = (60, 60)
 _map_shape = (60, 60)
 CHANNEL_N = 16
 CELL_FIRE_RATE = 0.5
-model_path = "models/test2.pth"
+model_path = "models/jmu_dog.pth"
 device = torch.device("cpu")
 
 torch.set_grad_enabled(False)
@@ -38,7 +38,7 @@ display_map = np.ones([*display_map_shape, 3]) -0.00001
 
 # Rasberry pi only has this backend
 torch.backends.quantized.engine = 'qnnpack'
-model = NoGCAModel(CHANNEL_N, CELL_FIRE_RATE, device).to(device)
+model = CAModel(CHANNEL_N, CELL_FIRE_RATE, device).to(device)
 # model = model.prepare()
 model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 # model = model.convert()
@@ -55,7 +55,6 @@ while running:
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-
             running = False
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -69,11 +68,17 @@ while running:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 isSpaceDown = True
+            if event.key == pygame.K_ESCAPE:
+                running = False
 
     if isMouseDown:
         try:
-            diff = display_map_shape[0] - _map_shape[0]
-            mouse_pos = np.array([int(event.pos[1]/pix_size - diff), int(event.pos[0] / pix_size - diff)])
+            print("mouse")
+            # mouse_pos = np.array([int(event.pos[1]/pix_size - diff), int(event.pos[0] / pix_size - diff)])
+            print(disp.scale_factor)
+            mouse_pos = np.array([int((event.pos[1] - disp.offset[1]) / disp.scale_factor),
+                                  int((event.pos[0] - disp.offset[0])) / disp.scale_factor])
+            print(f"POS: {mouse_pos}")
             should_keep = (mat_distance(_map_pos, mouse_pos)>eraser_radius).reshape([_map_shape[0],_map_shape[1],1])
             output = output * torch.tensor(should_keep)
         except AttributeError:
