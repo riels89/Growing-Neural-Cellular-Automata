@@ -50,6 +50,8 @@ def aspect_scale(img, xy, dest=None):
         else:
             sy = by
 
+    sx = int(sx)
+    sy = int(sy)
     if dest is None:
         return scale_factor, pygame.transform.scale(img, (sx,sy))
     else:
