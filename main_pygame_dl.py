@@ -15,7 +15,9 @@ display_map_shape = (60, 60)
 _map_shape = (60, 60)
 CHANNEL_N = 16
 CELL_FIRE_RATE = 0.5
-model_path = "models/jmu_dog.pth"
+model_paths = ["models/jmu_dog.pth", "models/kirby.pth"]
+model_idx = 0
+model_path = model_paths[model_idx]
 device = torch.device("cpu")
 
 torch.set_grad_enabled(False)
@@ -53,7 +55,11 @@ pygame.mouse.set_cursor((8,8),(0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0))
 
 isMouseDown = False
 isSpaceDown = False
+doubleClick = False
 running = True
+dbclock = pygame.time.Clock()
+DOUBLECLICKTIME = 500
+
 while running:
 
     for event in pygame.event.get():
@@ -63,6 +69,8 @@ while running:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 isMouseDown = True
+            if dbclock.tick() < DOUBLECLICKTIME:
+                doubleClick = True
 
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == 1:
@@ -82,12 +90,16 @@ while running:
             output = output * torch.tensor(should_keep)
         except AttributeError:
             pass
-    elif isSpaceDown:
-        curr_target = (curr_target + 1) % 2
+    elif isSpaceDown or doubleClick:
         output = make_seed(_map_shape, CHANNEL_N)
-        # output[_map.shape[0]//2, _map.shape[1]//2, 3:] = seed_values[curr_target]
         output = torch.from_numpy(output[np.newaxis])
+
+        model_idx = (model_idx + 1) % len(model_paths)
+        model_path = model_paths[model_idx]
+        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+
         isSpaceDown = False
+        doubleClick = False
 
     output = model(output, 1)
     # print(np.sum(make_seed(_map_shape, CHANNEL_N)))
