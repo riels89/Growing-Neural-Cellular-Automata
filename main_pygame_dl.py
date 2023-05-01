@@ -47,6 +47,9 @@ first_input = torch.from_numpy(_map.reshape([1,_map_shape[0],_map_shape[1],CHANN
 output = model(first_input, 1)
 
 disp = displayer(display_map_shape, pix_size)
+# hide cursor for touch screen
+pygame.mouse.set_cursor((8,8),(0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0))
+
 
 isMouseDown = False
 isSpaceDown = False
@@ -73,12 +76,8 @@ while running:
 
     if isMouseDown:
         try:
-            print("mouse")
-            # mouse_pos = np.array([int(event.pos[1]/pix_size - diff), int(event.pos[0] / pix_size - diff)])
-            print(disp.scale_factor)
             mouse_pos = np.array([int((event.pos[1] - disp.offset[1]) / disp.scale_factor),
                                   int((event.pos[0] - disp.offset[0])) / disp.scale_factor])
-            print(f"POS: {mouse_pos}")
             should_keep = (mat_distance(_map_pos, mouse_pos)>eraser_radius).reshape([_map_shape[0],_map_shape[1],1])
             output = output * torch.tensor(should_keep)
         except AttributeError:
