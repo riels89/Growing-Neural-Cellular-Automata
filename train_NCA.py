@@ -18,7 +18,7 @@ parser.add_argument("--plot_path", help="Path to put batch vizualization.",
 parser.add_argument("-r", "--reload", 
                     help="""If model path already contains a trained model,
                             should training start with this loaded model.""",
-                    action="store_true", default=True)
+                    action="store_true", default=False)
 parser.add_argument("-d", "--device", help="Device to train on.",
                     default="cuda", type=torch.device)
 parser.add_argument("-c", "--channel_n", help="Total number of CA channels.",
@@ -80,7 +80,7 @@ pool = SamplePool(x=np.repeat(seed[None, ...], POOL_SIZE, 0))
 
 model = CAModel(CHANNEL_N, CELL_FIRE_RATE, device)
 if args.reload:
-    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
 
 #### Start of training
 optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas)
