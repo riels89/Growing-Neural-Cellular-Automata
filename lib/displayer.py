@@ -76,7 +76,7 @@ class displayer:
         # Fix on rasberry pi 7 inch to center it. I have no idea how to force it to
         # use the actual 800 x 480 res it expects ATM.
         if self.screen_size[0] == 848:
-            self.screen_size[0] = 800
+            self.screen_size = (800, 480)
 
         self._map_shape = _map_shape
         self.has_gap = has_gap
