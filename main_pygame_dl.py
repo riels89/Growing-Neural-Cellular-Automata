@@ -7,6 +7,8 @@ from lib.displayer import displayer
 from lib.utils import mat_distance
 from lib.CAModel import CAModel,QCAModel, NoGCAModel
 from lib.utils_vis import to_rgb, make_seed
+import glob
+
 
 eraser_radius = 6
 
@@ -15,7 +17,7 @@ display_map_shape = (60, 60)
 _map_shape = (60, 60)
 CHANNEL_N = 16
 CELL_FIRE_RATE = 0.5
-model_paths = ["models/jmu_dog.pth", "models/kirby.pth"]
+model_paths = ["models/jmu_dog.pth", *glob.glob("new_models/*")]
 model_idx = 0
 model_path = model_paths[model_idx]
 device = torch.device("cpu")
@@ -57,14 +59,22 @@ isMouseDown = False
 isSpaceDown = False
 doubleClick = False
 running = True
+timer = False
 dbclock = pygame.time.Clock()
-DOUBLECLICKTIME = 500
+N_SECONDS_CHANGE = 300
+pygame.time.set_timer(pygame.USEREVENT, 1000 * N_SECONDS_CHANGE)
 
+DOUBLECLICKTIME = 500
+NO_CHANGE_AFTER = 1000
+iters_no_interupt = 0
 while running:
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+
+        elif event.type == pygame.USEREVENT: 
+            timer = True
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
@@ -88,9 +98,10 @@ while running:
                                   int((event.pos[0] - disp.offset[0])) / disp.scale_factor])
             should_keep = (mat_distance(_map_pos, mouse_pos)>eraser_radius).reshape([_map_shape[0],_map_shape[1],1])
             output = output * torch.tensor(should_keep)
+            iters_no_interupt = 0
         except AttributeError:
             pass
-    elif isSpaceDown or doubleClick:
+    elif isSpaceDown or doubleClick or (timer and iters_no_interupt > NO_CHANGE_AFTER):
         output = make_seed(_map_shape, CHANNEL_N)
         output = torch.from_numpy(output[np.newaxis])
 
@@ -100,10 +111,12 @@ while running:
 
         isSpaceDown = False
         doubleClick = False
+        timer = False
+        iters_no_interupt = 0
 
-    output = model(output, 1)
-    # print(np.sum(make_seed(_map_shape, CHANNEL_N)))
-
-    _map = to_rgb(output.numpy()[0])
-    display_map = _map
-    disp.update(display_map)
+    if iters_no_interupt < NO_CHANGE_AFTER:
+        output = model(output, 1)
+        _map = to_rgb(output.numpy()[0])
+        display_map = _map
+        disp.update(display_map)
+    iters_no_interupt += 1
